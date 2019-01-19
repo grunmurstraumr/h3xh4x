@@ -1,0 +1,6 @@
+venv
+*.swp
+.idea
+*~
+testfile.txt
+testfile.bak
