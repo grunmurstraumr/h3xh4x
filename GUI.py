@@ -108,6 +108,7 @@ class GUI:
         output = None
         if self.current_tab is self.hex_window:
             output = self._hexify_output(self.data[self.frame_index])
+            self.error_label.config(text="")
         elif self.current_tab is self.text_window:
             output = self._textify_output(self.data[self.frame_index])
             if not self.text_available:
