@@ -31,6 +31,7 @@ class GUI:
         self.root.geometry('1000x700')
 
         #Initialize variables
+        self.byte_count = 0
         self.frame_index = 0
         self.frame_count = float('NaN')
         self.text_available = True
@@ -60,6 +61,7 @@ class GUI:
         #Bind events
         self.hex_window.bind('<Visibility>', self._switch_tab)
         self.text_window.bind('<Visibility>', self._switch_tab)
+        self.hex_window.bind('<ButtonRelease-1>', self._update_cursor)
 
         #Set up labels
         self.byte_number_label = tk.Label(self.root)
@@ -96,6 +98,13 @@ class GUI:
             self.report_input_error()
             return
 
+    def _calculate_byte_number(self, cursor_position):
+        buffer_size = int(config.get(option='buffer_size', section='FILES', fallback=8192))
+        return (cursor_position[1]//3) + (self.frame_index * buffer_size) + 1
+
+    def _update_cursor(self, event):
+        position = tuple(int(i) for i in self.current_tab.index(tk.INSERT).split('.'))
+        self.byte_number_label.configure(text='Byte {} of {}'.format(self._calculate_byte_number(position), self.byte_count))
 
     def _update_view(self):
         if not self.data:
@@ -105,7 +114,6 @@ class GUI:
         self.frame_count_label.configure(text="{} of {}".format(self.frame_index+1, self.frame_count))
         self.current_tab.delete('0.0', tk.END)
         #Insert new content
-        output = None
         if self.current_tab is self.hex_window:
             output = self._hexify_output(self.data[self.frame_index])
             self.error_label.config(text="")
@@ -119,6 +127,7 @@ class GUI:
                 self.error_label.configure(text="")
         else:
             raise RuntimeError
+        self.byte_number_label.configure(text='Byte {} of {}'.format(0, self.byte_count))
         self.current_tab.insert(tk.END, output)
 
     def _update_data(self):
@@ -177,7 +186,6 @@ class GUI:
     def load_file(self):
         filename = filedialog.askopenfilename(initialdir=os.curdir, filetypes=(("All files", "*.*"),("Executable","*.exe"),))
         if filename:
-            self.file_cursor_pos = 0
             self.current_tab.delete('0.0', tk.END)
             self.load_file_data(filename)
             self.frame_count_label.config(text='{} of {}'.format(self.frame_index,self.frame_count))
@@ -186,12 +194,13 @@ class GUI:
 
     def load_file_data(self, filename: str):
         buffer_size = int(config.get(option='buffer_size', section='FILES', fallback=8192))
-        print(buffer_size)
+        self.byte_count = 0
         self.data = []
         self.frame_index = 0
         with open(filename, mode='rb') as file:
             while True:
                 chunk = file.read(buffer_size)
+                self.byte_count += len(chunk)
                 if chunk:
                     self.data.append(chunk)
                 else:
