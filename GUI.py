@@ -6,6 +6,7 @@ from tkinter.scrolledtext import ScrolledText
 import os, sys
 from PyQt5.QtWidgets import QApplication, QWidget
 from configparser import ConfigParser
+import re
 
 config = ConfigParser()
 config.read('settings.ini')
@@ -59,9 +60,22 @@ class GUI:
         self.main_menu.add_cascade(label='File', menu=self.file_menu)
 
         #Bind events
-        self.hex_window.bind('<Visibility>', self._switch_tab)
+        #Tect window events
         self.text_window.bind('<Visibility>', self._switch_tab)
+        self.text_window.bind('<Up>', self._cursor_step_up )
+        self.text_window.bind('<Down>', self._cursor_step_down )
+
+
+        #Hex window events
+        self.hex_window.bind('<Visibility>', self._switch_tab)
         self.hex_window.bind('<ButtonRelease-1>', self._update_cursor)
+        self.hex_window.bind('<Right>', self._cursor_step_right)
+        self.hex_window.bind('<Left>', self._cursor_step_left)
+        self.hex_window.bind('<Key>', self._handle_key)
+        self.hex_window.bind('<Up>', self._cursor_step_up )
+        self.hex_window.bind('<Down>', self._cursor_step_down )
+
+
 
         #Set up labels
         self.byte_number_label = tk.Label(self.root)
@@ -98,13 +112,68 @@ class GUI:
             self.report_input_error()
             return
 
+
     def _calculate_byte_number(self, cursor_position):
         buffer_size = int(config.get(option='buffer_size', section='FILES', fallback=8192))
         return (cursor_position[1]//3) + (self.frame_index * buffer_size) + 1
 
     def _update_cursor(self, event):
-        position = tuple(int(i) for i in self.current_tab.index(tk.INSERT).split('.'))
+        position = [int(i) for i in self.current_tab.index(tk.INSERT).split('.')]
+        #Update the byte number display
         self.byte_number_label.configure(text='Byte {} of {}'.format(self._calculate_byte_number(position), self.byte_count))
+        #Move cursor to start of byte
+        diff = position[1] % 3
+        if not diff == 0:
+            position[1] -= diff
+            self.hex_window.mark_set(tk.INSERT, '.'.join(map(str, position)))
+
+
+    def _cursor_step_up(self, event):
+        position = [int(i) for i in self.current_tab.index(tk.INSERT).split('.')]
+        position[0] -= 1
+        self.hex_window.mark_set(tk.INSERT, '.'.join(map(str, position)))
+        self.byte_number_label.configure(
+            text='Byte {} of {}'.format(self._calculate_byte_number(position), self.byte_count))
+
+    def _cursor_step_down(self, event):
+        position = [int(i) for i in self.current_tab.index(tk.INSERT).split('.')]
+        position[0] += 1
+        self.hex_window.mark_set(tk.INSERT, '.'.join(map(str, position)))
+        self.byte_number_label.configure(
+            text='Byte {} of {}'.format(self._calculate_byte_number(position), self.byte_count))
+
+    def _cursor_step_right(self, event):
+        position = [int(i) for i in self.current_tab.index(tk.INSERT).split('.')]
+        position[1] += 3
+        diff = position[1] % 3
+        if not diff == 0:
+            position[1] -= diff
+        self.hex_window.mark_set(tk.INSERT, '.'.join(map(str, position)))
+        self.byte_number_label.configure(text='Byte {} of {}'.format(self._calculate_byte_number(position), self.byte_count))
+
+        return 'break';
+
+    def _cursor_step_left(self, event):
+        position = [int(i) for i in self.current_tab.index(tk.INSERT).split('.')]
+        position[1] -= 3
+        diff = position[1] % 3
+        if not diff == 0:
+            position[1] -= diff
+        self.hex_window.mark_set(tk.INSERT, '.'.join(map(str, position)))
+        self.byte_number_label.configure(
+            text='Byte {} of {}'.format(self._calculate_byte_number(position), self.byte_count))
+        return 'break';
+
+    def _handle_key(self, event):
+        position = [int(i) for i in self.current_tab.index(tk.INSERT).split('.')]
+        keys = [str(i) for i in range(0, 10)]
+        keys.extend(['a', 'b', 'c', 'd', 'e', 'f'])
+        if event.char in keys and not self.hex_window.get(tk.INSERT) == ' ':
+            self.hex_window.delete(tk.INSERT)
+            self.hex_window.insert(tk.INSERT, event.char)
+            position[1] += 1
+            self.hex_window.mark_set(tk.INSERT, '.'.join(map(str, position)))
+        return "break"
 
     def _update_view(self):
         if not self.data:
